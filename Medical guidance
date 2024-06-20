@@ -1,0 +1,18 @@
+from transformers import pipeline
+
+# Initialize the text generation pipeline with the 'distilgpt2' model
+generator = pipeline("text-generation", model="distilgpt2")
+
+# Define the input text and generation parameters for a healthcare scenario
+input_text = "To manage diabetes effectively, it is important to"
+generation_params = {
+    "max_length": 50,            # Increase max length for more comprehensive advice
+    "num_return_sequences": 3    # Generate multiple pieces of advice
+}
+
+# Generate health-related text based on the input and parameters
+res = generator(input_text, **generation_params)
+
+# Print the generated health advice sequences
+for idx, sequence in enumerate(res):
+    print(f"Advice {idx + 1}:\n{sequence['generated_text']}\n")
