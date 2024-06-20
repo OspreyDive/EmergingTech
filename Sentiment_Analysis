@@ -5,18 +5,10 @@ try:
     # Initialize the sentiment analysis pipeline
     classifier = pipeline("sentiment-analysis")
 
-    # List of texts to analyze
-    texts = [
-        "I have been going through anxiety attacks lately, please help.",
-        "I am feeling great today!",
-        "I am not sure about my upcoming surgery, I am very nervous."
-    ]
+    # Analyze the sentiment of the given text
+    res = classifier("I have been going through anxiety attacks lately, lack of sleep, limited or no hunger and pain in left side of the chest, please help.")
 
-    # Analyze the sentiment of each text in the list
-    results = classifier(texts)
-
-    # Print the results
-    for text, sentiment in zip(texts, results):
-        print(f"Text: {text}\nSentiment: {sentiment}\n")
+    # Print the result
+    print(res)
 except PipelineException as e:
     print(f"An error occurred: {e}")
