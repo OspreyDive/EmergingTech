@@ -1,0 +1,118 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from transformers import GPT2Tokenizer, GPT2LMHeadModel
+from datasets import load_dataset
+from transformers import DataCollatorForLanguageModeling
+from transformers import Trainer, TrainingArguments
+import torch
+
+# Sample synthetic data for patient readmission
+data = {
+    'diagnosis': ['diag_' + str(i % 10) for i in range(200)],
+    'age': [50 + i % 30 for i in range(200)],
+    'gender': ['male' if i % 2 == 0 else 'female' for i in range(200)],
+    'treatment_history': ['treatment_' + str(i % 5) for i in range(200)],
+    'lab_results': [str(i % 200) for i in range(200)],
+    'readmitted': ['yes' if i % 2 == 0 else 'no' for i in range(200)]
+}
+
+df = pd.DataFrame(data)
+df['text'] = df.apply(lambda row: f"Patient with diagnosis {row['diagnosis']}, age {row['age']}, gender {row['gender']}, treatment history {row['treatment_history']}, and lab results {row['lab_results']} was readmitted: {row['readmitted']}.", axis=1)
+
+# Split into train and test datasets
+train_df, test_df = train_test_split(df, test_size=0.2, random_state=42)
+
+# Save to CSV for later use
+train_df.to_csv('train.csv', index=False)
+test_df.to_csv('test.csv', index=False)
+
+# Load the dataset
+dataset = load_dataset('csv', data_files={'train': 'train.csv', 'test': 'test.csv'})
+
+# Load the tokenizer and model
+tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+tokenizer.pad_token = tokenizer.eos_token  # Set padding token to be eos_token
+
+model = GPT2LMHeadModel.from_pretrained('gpt2')
+
+# Tokenize the data
+def tokenize_function(examples):
+    return tokenizer(examples['text'], padding="max_length", truncation=True, max_length=128)
+
+tokenized_datasets = dataset.map(tokenize_function, batched=True)
+
+# Data collator
+data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False, pad_to_multiple_of=None)
+
+# Format the dataset
+def format_dataset(dataset):
+    dataset.set_format(type='torch', columns=['input_ids', 'attention_mask'])
+    return dataset
+
+train_dataset = format_dataset(tokenized_datasets['train'])
+eval_dataset = format_dataset(tokenized_datasets['test'])
+
+# Debugging: Check a sample of input to the model
+sample_input = next(iter(train_dataset))
+print("Sample input:", sample_input)
+
+# Training arguments
+training_args = TrainingArguments(
+    output_dir='./results',
+    eval_strategy="epoch",
+    per_device_train_batch_size=8,
+    per_device_eval_batch_size=8,
+    num_train_epochs=1,
+    weight_decay=0.01,
+)
+
+# Trainer
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=train_dataset,
+    eval_dataset=eval_dataset,
+    data_collator=data_collator,
+    tokenizer=tokenizer,
+)
+
+# Training
+try:
+    trainer.train()
+except Exception as e:
+    print("Error during training:", e)
+
+# Evaluation
+try:
+    trainer.evaluate()
+except Exception as e:
+    print("Error during evaluation:", e)
+
+# Inference
+def generate_text(diagnosis, age, gender, treatment_history, lab_results):
+    input_text = f"Patient with diagnosis {diagnosis}, age {age}, gender {gender}, treatment history {treatment_history}, and lab results {lab_results} was readmitted:"
+    inputs = tokenizer(input_text, return_tensors="pt")
+    outputs = model.generate(**inputs, max_length=128)
+    return tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+# Test Scenario 1
+new_data_1 = {
+    'diagnosis': ['diag_1'],
+    'age': [70],
+    'gender': ['male'],
+    'treatment_history': ['treatment_3'],
+    'lab_results': ['95']
+}
+output_1 = generate_text(new_data_1['diagnosis'][0], new_data_1['age'][0], new_data_1['gender'][0], new_data_1['treatment_history'][0], new_data_1['lab_results'][0])
+print("Scenario 1 Output:", output_1)
+
+# Test Scenario 2
+new_data_2 = {
+    'diagnosis': ['diag_3'],
+    'age': [55],
+    'gender': ['female'],
+    'treatment_history': ['treatment_2'],
+    'lab_results': ['120']
+}
+output_2 = generate_text(new_data_2['diagnosis'][0], new_data_2['age'][0], new_data_2['gender'][0], new_data_2['treatment_history'][0], new_data_2['lab_results'][0])
+print("Scenario 2 Output:", output_2)
