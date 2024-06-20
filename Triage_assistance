@@ -1,0 +1,16 @@
+from transformers import pipeline
+
+# Initialize the zero-shot classification pipeline with a specific model
+classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
+
+# Define the input text and candidate labels
+input_text = "I am feeling severe headache and thirsty and tired"
+candidate_labels = ["normal", "emergency", "diabetic", "cancer"]
+
+# Perform the classification
+classification_result = classifier(input_text, candidate_labels)
+
+# Print the result in a readable format
+print("Classification Results:")
+for label, score in zip(classification_result['labels'], classification_result['scores']):
+    print(f"{label}: {score:.4f}")
