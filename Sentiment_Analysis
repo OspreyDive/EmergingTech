@@ -1,0 +1,22 @@
+from transformers import pipeline
+from transformers.pipelines import PipelineException
+
+try:
+    # Initialize the sentiment analysis pipeline
+    classifier = pipeline("sentiment-analysis")
+
+    # List of texts to analyze
+    texts = [
+        "I have been going through anxiety attacks lately, please help.",
+        "I am feeling great today!",
+        "I am not sure about my upcoming surgery, I am very nervous."
+    ]
+
+    # Analyze the sentiment of each text in the list
+    results = classifier(texts)
+
+    # Print the results
+    for text, sentiment in zip(texts, results):
+        print(f"Text: {text}\nSentiment: {sentiment}\n")
+except PipelineException as e:
+    print(f"An error occurred: {e}")
