@@ -1,0 +1,102 @@
+Index file - 
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SRAM vs DRAM Performance Demo</title>
+</head>
+<body>
+    <h1>SRAM vs DRAM Performance Demo</h1>
+    <p>SRAM access time: {{ sram_time }} seconds</p>
+    <p>DRAM access time: {{ dram_time }} seconds</p>
+    <p><strong>{{ faster }}</strong> provides faster access compared to {{ slower }}.</p>
+</body>
+</html>
+
+
+----------------- Core program - app.py ---------
+from flask import Flask, render_template
+import time
+
+app = Flask(__name__)
+
+# Simulating SRAM with Python variables
+sram_data = {
+    "vital_signs": {
+        "heart_rate": 75,
+        "temperature": 36.5,
+        "blood_pressure": "120/80",
+    },
+    "patient_info": {
+        "age": 45,
+        "gender": "Male",
+        "weight": 75,
+    }
+}
+
+# Simulating DRAM with Python lists
+dram_data = [
+    {
+        "timestamp": "2024-06-27 10:00:00",
+        "heart_rate": 76,
+        "temperature": 36.6,
+        "blood_pressure": "118/82",
+        "age": 45,
+        "gender": "Male",
+        "weight": 75,
+    },
+    {
+        "timestamp": "2024-06-27 09:00:00",
+        "heart_rate": 74,
+        "temperature": 36.4,
+        "blood_pressure": "122/78",
+        "age": 45,
+        "gender": "Male",
+        "weight": 75,
+    }
+]
+
+
+# Function to access data from SRAM (variables)
+def access_sram():
+    start_time = time.perf_counter()
+    # Simulate data access delay for SRAM
+    time.sleep(0.00001)  # 0.001 milliseconds (adjust as needed)
+    heart_rate = sram_data["vital_signs"]["heart_rate"]
+    temperature = sram_data["vital_signs"]["temperature"]
+    end_time = time.perf_counter()
+    return end_time - start_time
+
+
+# Function to access data from DRAM (lists)
+def access_dram():
+    start_time = time.perf_counter()
+    # Simulate data access delay for DRAM
+    time.sleep(0.00001)  # 0.01 milliseconds (adjust as needed)
+    latest_data = dram_data[0]
+    heart_rate = latest_data["heart_rate"]
+    temperature = latest_data["temperature"]
+    end_time = time.perf_counter()
+    return end_time - start_time
+
+
+# Flask route for home page
+@app.route('/')
+def home():
+    # Perform data access and measure time
+    sram_time = access_sram()
+    dram_time = access_dram()
+
+    # Determine which access method is faster
+    if sram_time < dram_time:
+        faster = "SRAM"
+        slower = "DRAM"
+    else:
+        faster = "DRAM"
+        slower = "SRAM"
+
+    # Render HTML template with data
+    return render_template('index.html', sram_time=sram_time, dram_time=dram_time, faster=faster, slower=slower)
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
