@@ -1,0 +1,119 @@
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+from flask import Flask, render_template_string
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+
+app = Flask(__name__)
+
+# Simulate complex data (e.g., heart rate, sleep, and additional stress indicators)
+np.random.seed(42)
+num_samples = 1000
+
+# Heart rate data (before and after stress)
+baseline_hr = np.random.normal(70, 5, num_samples)
+stressed_hr = np.random.normal(85, 10, num_samples)
+
+# Sleep data (before and after stress)
+baseline_sleep = np.random.normal(7.5, 0.5, num_samples)
+stressed_sleep = np.random.normal(5.5, 1, num_samples)
+
+# Additional stress indicators
+workload = np.random.normal(5, 2, num_samples)  # Scale 1-10
+social_interaction = np.random.normal(5, 2, num_samples)  # Scale 1-10
+nutrition = np.random.normal(7, 1.5, num_samples)  # Scale 1-10
+
+# Combine data into a single dataset
+X = np.vstack([baseline_hr, stressed_hr, baseline_sleep, stressed_sleep, workload, social_interaction, nutrition]).T
+y = np.random.choice([0, 1], size=num_samples)  # Binary stress indicator (0: no stress, 1: stress)
+
+# Split data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Standardize data
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+# Build a neural network model
+model = Sequential([
+    Dense(64, activation='relu', input_shape=(X_train.shape[1],)),
+    Dense(32, activation='relu'),
+    Dense(1, activation='sigmoid')
+])
+
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+
+# Train the model
+model.fit(X_train, y_train, epochs=20, batch_size=32, validation_split=0.2)
+
+# Evaluate the model
+loss, accuracy = model.evaluate(X_test, y_test)
+print(f"Model Accuracy: {accuracy * 100:.2f}%")
+
+# Make predictions
+predictions = model.predict(X_test)
+
+
+# Visualize insights
+def plot_data():
+    fig, axes = plt.subplots(2, 2, figsize=(12, 8))
+
+    # Heart rate distribution
+    axes[0, 0].hist(baseline_hr, bins=30, alpha=0.5, label='Baseline HR')
+    axes[0, 0].hist(stressed_hr, bins=30, alpha=0.5, label='Stressed HR')
+    axes[0, 0].set_title('Heart Rate Distribution')
+    axes[0, 0].legend()
+
+    # HRV comparison (using mean HRV as a proxy)
+    baseline_hrv = np.std(60000 / baseline_hr)
+    stressed_hrv = np.std(60000 / stressed_hr)
+    axes[0, 1].bar(['Baseline HRV', 'Stressed HRV'], [baseline_hrv, stressed_hrv])
+    axes[0, 1].set_title('HRV Comparison')
+
+    # Sleep quality comparison
+    axes[1, 0].bar(['Baseline Sleep', 'Stressed Sleep'],
+                   [np.mean(baseline_sleep), np.mean(stressed_sleep)],
+                   yerr=[np.std(baseline_sleep), np.std(stressed_sleep)])
+    axes[1, 0].set_title('Sleep Quality Comparison')
+
+    # Model predictions
+    axes[1, 1].hist(predictions, bins=30, alpha=0.5, label='Predicted Stress Levels')
+    axes[1, 1].set_title('Model Predictions')
+    axes[1, 1].legend()
+
+    plt.tight_layout()
+
+    # Ensure the 'static' directory exists
+    os.makedirs('static', exist_ok=True)
+
+    fig.savefig('static/metrics.png')
+
+
+plot_data()
+
+
+@app.route('/')
+def display_metrics():
+    return render_template_string('''
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Stress Management Metrics</title>
+    </head>
+    <body>
+        <h1>Heart Rate Variability (HRV) and Sleep Quality</h1>
+        <img src="{{ url_for('static', filename='metrics.png') }}" alt="Metrics">
+        <h2>Model Accuracy: {{ accuracy }}%</h2>
+    </body>
+    </html>
+    ''', accuracy=accuracy * 100)
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
