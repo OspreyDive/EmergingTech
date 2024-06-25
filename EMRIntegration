@@ -1,0 +1,96 @@
+from flask import Flask, render_template_string
+import json
+
+app = Flask(__name__)
+
+# Step 1: Define Custom Formats
+# Hospital A's custom JSON format
+hospital_a_record = {
+    "patientID": "12345",
+    "name": "Cathy Smith",
+    "dob": "1980-01-01",
+    "medHistory": [
+        {"condition": "Hypertension", "diagnosed": "2015-03-20"},
+        {"condition": "Diabetes", "diagnosed": "2017-06-15"}
+    ],
+    "medications": [
+        {"name": "Lisinopril", "dose": "10mg"},
+        {"name": "Metformin", "dose": "500mg"}
+    ]
+}
+
+# Step 2: Define Conversion Functions
+def hospital_a_to_fhir(record):
+    fhir_record = {
+        "resourceType": "Patient",
+        "id": record["patientID"],
+        "name": [{"use": "official", "family": record["name"].split()[1], "given": [record["name"].split()[0]]}],
+        "birthDate": record["dob"],
+        "condition": [{"code": {"text": cond["condition"]}, "onsetDateTime": cond["diagnosed"]} for cond in record["medHistory"]],
+        "medicationStatement": [{"medicationCodeableConcept": {"text": med["name"]}, "dosage": [{"text": med["dose"]}]} for med in record["medications"]]
+    }
+    return fhir_record
+
+def fhir_to_clinic_b(fhir_record):
+    clinic_b_record = {
+        "id": fhir_record["id"],
+        "full_name": f"{fhir_record['name'][0]['given'][0]} {fhir_record['name'][0]['family']}",
+        "date_of_birth": fhir_record["birthDate"],
+        "medical_conditions": [{"condition": cond["code"]["text"], "date_diagnosed": cond["onsetDateTime"]} for cond in fhir_record["condition"]],
+        "current_medications": [{"medication": med["medicationCodeableConcept"]["text"], "dosage": med["dosage"][0]["text"]} for med in fhir_record["medicationStatement"]]
+    }
+    return clinic_b_record
+
+# Step 3: Simulate Data Exchange
+# Convert Hospital A's record to FHIR format
+fhir_record = hospital_a_to_fhir(hospital_a_record)
+
+# Convert FHIR record to Clinic B's format
+clinic_b_record = fhir_to_clinic_b(fhir_record)
+
+# HTML template for displaying the results
+html_template = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Health Information Exchange</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #333;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 10px;
+            border: 1px solid #ddd;
+            overflow: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Health Information Exchange Example</h1>
+    <h2>Hospital A Record</h2>
+    <pre>{{ hospital_a_record|tojson(indent=2) }}</pre>
+    <h2>FHIR Record</h2>
+    <pre>{{ fhir_record|tojson(indent=2) }}</pre>
+    <h2>Clinic B Record</h2>
+    <pre>{{ clinic_b_record|tojson(indent=2) }}</pre>
+</body>
+</html>
+"""
+
+@app.route('/')
+def display_records():
+    return render_template_string(html_template,
+                                  hospital_a_record=hospital_a_record,
+                                  fhir_record=fhir_record,
+                                  clinic_b_record=clinic_b_record)
+
+if __name__ == '__main__':
+    app.run(debug=True)
