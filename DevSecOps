@@ -1,0 +1,100 @@
+Index.html Code- 
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Healthcare Application Threat Model</title>
+</head>
+<body>
+    <h1>Healthcare Application Threat Model</h1>
+    <p><strong>Description:</strong> {{ threat_model.description }}</p>
+
+    <h2>Threats:</h2>
+    <ul>
+        {% for threat in threat_model.threats %}
+            <li>
+                <h3>{{ threat.name }}</h3>
+                <p><strong>Description:</strong> {{ threat.description }}</p>
+                <p><strong>Impact:</strong> {{ threat.impact }}</p>
+                <p><strong>Likelihood:</strong> {{ threat.likelihood }}</p>
+                <p><strong>Estimated Breach Cost:</strong> {{ threat.estimated_cost }}</p>
+            </li>
+        {% endfor %}
+    </ul>
+
+    <h2>Total Estimated Breach Cost:</h2>
+    <p>{{ total_cost }}</p>
+</body>
+</html>
+
+---------------- app.py code ---------- 
+from flask import Flask, render_template
+
+app = Flask(__name__)
+
+class ThreatModel:
+    def __init__(self, name, description):
+        self.name = name
+        self.description = description
+        self.threats = []
+
+    def add_threat(self, threat):
+        self.threats.append(threat)
+
+@app.route('/')
+def index():
+    # Create a threat model for a healthcare application
+    healthcare_threat_model = ThreatModel(
+        name="Healthcare Application Threat Model",
+        description="Threat modeling for a healthcare application, considering patient data security and regulatory compliance."
+    )
+
+    # Define potential threats in healthcare with sample data
+    threat1 = {
+        "name": "Medical Device Vulnerability",
+        "description": "Security vulnerabilities in infusion pumps used by hospital staff, allowing unauthorized access to patient data and potential alteration of medication dosages.",
+        "impact": "Could result in patient harm, medical errors, and potential loss of life.",
+        "likelihood": "High"
+    }
+    threat2 = {
+        "name": "Data Breach of Patient Health Records (PHRs)",
+        "description": "Unauthorized access or theft of patient health records containing sensitive information such as medical history, treatments, and personal identifiers.",
+        "impact": "Violation of patient confidentiality, regulatory fines, and reputational damage.",
+        "likelihood": "High"
+    }
+    threat3 = {
+        "name": "Regulatory Compliance Failure",
+        "description": "Non-compliance with healthcare data protection regulations (e.g., HIPAA in the United States, GDPR in Europe), leading to legal consequences and hefty fines.",
+        "impact": "Significant financial penalties, potential suspension of healthcare operations.",
+        "likelihood": "Medium"
+    }
+    threat4 = {
+        "name": "Insider Threat",
+        "description": "Malicious or inadvertent misuse of privileged access by hospital staff or contractors, resulting in unauthorized access to patient records or tampering with treatment plans.",
+        "impact": "Compromised patient safety, legal liabilities, and loss of trust from patients.",
+        "likelihood": "Medium"
+    }
+
+    # Add threats to the threat model
+    healthcare_threat_model.add_threat(threat1)
+    healthcare_threat_model.add_threat(threat2)
+    healthcare_threat_model.add_threat(threat3)
+    healthcare_threat_model.add_threat(threat4)
+
+    # Calculate total estimated breach cost
+    total_cost = 0
+    for threat in [threat1, threat2, threat3, threat4]:
+        likelihood = 3 if threat["likelihood"] == "High" else 2 if threat["likelihood"] == "Medium" else 1
+        impact = 3 if "High" in threat["impact"] else 2 if "Medium" in threat["impact"] else 1
+        cost = likelihood * impact * 100000  # Hypothetical multiplier for estimation
+        total_cost += cost
+        threat["estimated_cost"] = f"${cost:,}"
+
+    return render_template('index.html', threat_model=healthcare_threat_model, total_cost=f"${total_cost:,}")
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+
