@@ -1,0 +1,138 @@
+import random
+import time
+import torch
+from transformers import BertTokenizer, BertForSequenceClassification
+
+
+# Function to generate simulated medical data for five patients
+def generate_medical_data():
+    patients = []
+    for i in range(5):
+        # Generate random values within reasonable ranges
+        blood_pressure_sys = random.randint(120, 180)
+        blood_pressure_dia = random.randint(70, 110)
+        respiration_rate = random.randint(12, 30)
+        galvanic_skin_response = random.uniform(5.0, 10.0)
+
+        # Create patient data dictionary
+        patient_data = {
+            'Blood Pressure': f"{blood_pressure_sys}/{blood_pressure_dia}",  # Remove ' mmHg'
+            'Respiration Rate': f"{respiration_rate} breaths per minute",
+            'Galvanic Skin Response': f"{galvanic_skin_response:.2f} microsiemens"
+        }
+
+        patients.append(patient_data)
+
+    return patients
+
+
+# Function to analyze emergency based on thresholds
+def analyze_emergency(patients):
+    emergencies = []
+    emergency_threshold_bp_sys = 180
+    emergency_threshold_bp_dia = 110
+    emergency_threshold_resp = 30
+    emergency_threshold_gsr = 5.0
+
+    for idx, patient in enumerate(patients, start=1):
+        bp_sys, bp_dia = map(int, patient['Blood Pressure'].split('/'))
+        resp_rate = int(patient['Respiration Rate'].split()[0])
+        gsr = float(patient['Galvanic Skin Response'].split()[0])
+
+        # Check for emergencies based on thresholds
+        if bp_sys > emergency_threshold_bp_sys or bp_dia > emergency_threshold_bp_dia:
+            emergencies.append(f"Patient {idx}: High Blood Pressure ({patient['Blood Pressure']})")
+        elif resp_rate > emergency_threshold_resp:
+            emergencies.append(f"Patient {idx}: High Respiration Rate ({patient['Respiration Rate']})")
+        elif gsr < emergency_threshold_gsr:
+            emergencies.append(f"Patient {idx}: Low Galvanic Skin Response ({patient['Galvanic Skin Response']})")
+
+    return emergencies
+
+
+# Function to print report
+def print_report(emergencies):
+    if len(emergencies) == 0:
+        print("No emergencies detected.")
+    else:
+        print("Emergencies detected:")
+        for emergency in emergencies:
+            print(f"- {emergency}")
+
+
+# Function to load BERT model and tokenizer
+def load_bert_model():
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=2)
+    model.eval()  # Set model to evaluation mode
+    return model, tokenizer
+
+
+# Function to analyze patient data using BERT for anomaly detection and severity prediction
+def analyze_with_bert(patient_data, model, tokenizer):
+    labels = ['Normal', 'Anomalous']
+    alert_scores = []
+
+    for idx, patient in enumerate(patient_data, start=1):
+        input_text = f"Blood Pressure: {patient['Blood Pressure']}, Respiration Rate: {patient['Respiration Rate']}, Galvanic Skin Response: {patient['Galvanic Skin Response']}"
+
+        # Tokenize input text
+        inputs = tokenizer(input_text, return_tensors='pt')
+
+        # Make prediction with BERT
+        with torch.no_grad():
+            outputs = model(**inputs)
+
+        # Get predicted label and confidence score
+        logits = outputs.logits
+        predicted_class = torch.argmax(logits, dim=1).item()
+        confidence_score = torch.softmax(logits, dim=1)[0][predicted_class].item()
+
+        # Determine severity based on confidence score
+        severity = confidence_score * 100  # Convert confidence to percentage
+
+        # Generate alert score based on severity
+        if predicted_class == 1:
+            alert_score = int(severity)
+        else:
+            alert_score = 0
+
+        alert_scores.append(alert_score)
+
+        # Print detailed breakdown report
+        print(f"\nPatient {idx} Medical Data:")
+        print(f"- {input_text}")
+        print(f"- Predicted Label: {labels[predicted_class]}")
+        print(f"- Confidence Score: {confidence_score:.4f}")
+        print(f"- Severity: {severity:.2f}%")
+        print(f"- Alert Score: {alert_score}")
+
+    return alert_scores
+
+
+# Continuous monitoring loop every 60 seconds
+def continuous_monitoring():
+    model, tokenizer = load_bert_model()
+
+    while True:
+        print("\nGenerating medical data...")
+        patients_data = generate_medical_data()
+
+        print("\nAnalyzing emergencies...")
+        emergencies = analyze_emergency(patients_data)
+        print_report(emergencies)
+
+        print("\nAnalyzing with BERT...")
+        alert_scores = analyze_with_bert(patients_data, model, tokenizer)
+
+        # Notify physician with highest alert score
+        max_alert_score = max(alert_scores)
+        if max_alert_score > 0:
+            print(f"\nHighest Alert Score Detected: {max_alert_score}. Notify Physician.")
+
+        # Wait for 60 seconds before the next check
+        time.sleep(60)
+
+
+# Run the continuous monitoring function
+continuous_monitoring()
