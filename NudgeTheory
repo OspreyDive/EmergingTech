@@ -1,0 +1,191 @@
+import pandas as pd
+import numpy as np
+import os
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from transformers import GPT2Tokenizer, GPT2LMHeadModel
+import torch
+import matplotlib.pyplot as plt
+from flask import Flask, render_template_string
+
+# Generate sample data
+np.random.seed(42)  # For reproducibility
+
+# Generate user data
+num_users_per_group = 50
+
+# Users aged 18-30
+ages_18_30 = np.random.randint(18, 31, size=num_users_per_group)
+genders_18_30 = np.random.choice(['Male', 'Female'], size=num_users_per_group)
+steps_18_30 = np.random.randint(3000, 10000, size=num_users_per_group)
+calories_18_30 = np.random.randint(1500, 3500, size=num_users_per_group)
+
+# Users aged 31-45
+ages_31_45 = np.random.randint(31, 46, size=num_users_per_group)
+genders_31_45 = np.random.choice(['Male', 'Female'], size=num_users_per_group)
+steps_31_45 = np.random.randint(2000, 8000, size=num_users_per_group)
+calories_31_45 = np.random.randint(1200, 3000, size=num_users_per_group)
+
+# Users aged above 45
+ages_above_45 = np.random.randint(46, 70, size=num_users_per_group)
+genders_above_45 = np.random.choice(['Male', 'Female'], size=num_users_per_group)
+steps_above_45 = np.random.randint(1000, 6000, size=num_users_per_group)
+calories_above_45 = np.random.randint(1000, 2500, size=num_users_per_group)
+
+# Combine into a single DataFrame
+data = {
+    'age': np.concatenate([ages_18_30, ages_31_45, ages_above_45]),
+    'gender': np.concatenate([genders_18_30, genders_31_45, genders_above_45]),
+    'steps': np.concatenate([steps_18_30, steps_31_45, steps_above_45]),
+    'calories': np.concatenate([calories_18_30, calories_31_45, calories_above_45])
+}
+
+df = pd.DataFrame(data)
+
+# Define low activity threshold
+low_activity_threshold = 5000
+df['low_activity'] = df['steps'] < low_activity_threshold
+
+# Save data to CSV
+output_path = r'C:\Users\curio\Desktop\Osprey\synthetic_data.csv'
+df.to_csv(output_path, index=False)
+
+print(f"Sample data saved to {output_path}")
+
+# Load data from CSV
+input_path = r'C:\Users\curio\Desktop\Osprey\synthetic_data.csv'
+df = pd.read_csv(input_path)
+
+# Preprocess the data
+df = df.dropna()
+
+# Define features and target variable
+features = df[['age', 'gender', 'steps', 'calories']]
+target = df['low_activity']
+
+# Convert categorical data to numeric
+features = pd.get_dummies(features, columns=['gender'])
+
+# Split the data
+X_train, X_test, y_train, y_test = train_test_split(features, target, test_size=0.2, random_state=42)
+
+# Train a RandomForestClassifier
+clf = RandomForestClassifier(n_estimators=100, random_state=42)
+clf.fit(X_train, y_train)
+
+# Evaluate the model
+accuracy = clf.score(X_test, y_test)
+print(f"Model Accuracy: {accuracy}")
+
+# Load pre-trained GPT-2 model and tokenizer
+tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+model = GPT2LMHeadModel.from_pretrained('gpt2', pad_token_id=tokenizer.eos_token_id)
+
+# Generate and store nudges
+nudges = []
+for index, user in df[df['low_activity']].iterrows():
+    user_info = {
+        'age': user['age'],
+        'gender': user['gender'],
+        'steps': user['steps']
+    }
+    prompt = f"The user is {user_info['age']} years old, {user_info['gender']}, and walks {user_info['steps']} steps a day. "
+    if user_info['steps'] < low_activity_threshold:
+        prompt += "Encourage them to increase their physical activity by taking short walks and enjoying immediate health benefits like improved mood and energy. "
+        prompt += "Highlight that most people in their community are becoming more active."
+    inputs = tokenizer.encode(prompt, return_tensors='pt')
+    outputs = model.generate(inputs, max_length=100, num_return_sequences=1)
+    message = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    nudges.append({'user_id': index + 1, 'message': message})
+
+# Flask web application to display nudges and charts
+app = Flask(__name__)
+
+# HTML template
+template = """
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Health Nudges</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        padding: 20px;
+      }
+      .nudge-list {
+        margin-top: 20px;
+        padding-left: 20px;
+      }
+      .visualization {
+        margin-top: 40px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Personalized Health Nudges</h1>
+    <div class="nudge-list">
+      <ul>
+        {% for nudge in nudges %}
+          <li>User {{ nudge.user_id }}: {{ nudge.message }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div class="visualization">
+      <h2>Health Data Visualization</h2>
+      <img src="/static/health_data_visualization.png" alt="Health Data Visualization">
+      <div>
+        <h3>Steps Distribution by Age Group</h3>
+        <ul>
+          <li>18-30 years: Mean steps = {{ mean_steps_18_30 }}</li>
+          <li>31-45 years: Mean steps = {{ mean_steps_31_45 }}</li>
+          <li>Above 45 years: Mean steps = {{ mean_steps_above_45 }}</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Low Activity Status</h3>
+        <p>Active users: {{ active_users }}</p>
+        <p>Low activity users: {{ low_activity_users }}</p>
+      </div>
+    </div>
+  </body>
+</html>
+"""
+
+@app.route('/')
+def display_nudges_and_visualization():
+    # Generate charts
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+    # Steps distribution by age group
+    df.loc[df['age'].between(18, 30), 'steps'].hist(bins=15, ax=axes[0], color='b', alpha=0.7, label='18-30 years')
+    df.loc[df['age'].between(31, 45), 'steps'].hist(bins=15, ax=axes[0], color='g', alpha=0.7, label='31-45 years')
+    df.loc[df['age'] > 45, 'steps'].hist(bins=15, ax=axes[0], color='r', alpha=0.7, label='Above 45 years')
+    axes[0].set_title('Steps Distribution by Age Group')
+    axes[0].set_xlabel('Steps')
+    axes[0].set_ylabel('Frequency')
+    axes[0].legend()
+
+    # Low activity status pie chart
+    low_activity_counts = df['low_activity'].value_counts()
+    labels = ['Active', 'Low Activity']
+    axes[1].pie(low_activity_counts, labels=labels, autopct='%1.1f%%', shadow=True, startangle=140)
+    axes[1].set_title('Low Activity Status')
+
+    plt.tight_layout()
+    if not os.path.exists('static'):
+        os.makedirs('static')
+    plt.savefig('static/health_data_visualization.png')
+
+    # Render the HTML template with data
+    return render_template_string(template, nudges=nudges,
+                                  mean_steps_18_30=int(df.loc[df['age'].between(18, 30), 'steps'].mean()),
+                                  mean_steps_31_45=int(df.loc[df['age'].between(31, 45), 'steps'].mean()),
+                                  mean_steps_above_45=int(df.loc[df['age'] > 45, 'steps'].mean()),
+                                  active_users=df['low_activity'].value_counts()[0],
+                                  low_activity_users=df['low_activity'].value_counts()[1])
+
+if __name__ == '__main__':
+    app.run(debug=True)
