@@ -1,0 +1,22 @@
+from transformers import pipeline
+
+# Load sentiment analysis pipeline
+classifier = pipeline("sentiment-analysis")
+
+# Define patient reviews (you can replace these with actual patient feedback)
+patient_reviews = [
+    "I had a great experience with the healthcare provider. Very caring and professional.",
+    "The service was slow and the staff seemed uninterested.",
+    "The treatment was effective but the waiting times were too long.",
+    "Overall, I am satisfied with the care I received.",
+    "I would not recommend this clinic to anyone. Terrible experience."
+]
+
+# Analyze sentiment for each patient review
+for review in patient_reviews:
+    print(f"Patient review: {review}")
+    result = classifier(review)[0]
+    label = result['label']
+    confidence = result['score']
+    print(f"Predicted sentiment: {label}, Confidence: {confidence:.4f}")
+    print()
